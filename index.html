@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+  <title>Forest Drift Racer</title>
+</head>
+<body>
+  <div id="gameContainer">
+    <div id="ui-layer">
+
+      <div id="hud">
+        <div class="hud-item">
+          <div class="label">SPEED</div>
+          <div class="value" id="speedValue">0</div>
+        </div>
+        <div class="hud-item">
+          <div class="label">SCORE</div>
+          <div class="value" id="scoreValue">0</div>
+        </div>
+        <div class="hud-item">
+          <div class="label">POS</div>
+          <div class="value" id="posValue">1st</div>
+        </div>
+        <div class="hud-item">
+          <div class="label">TIME</div>
+          <div class="value" id="timeValue">0.0</div>
+          <div id="timeLimitHint" style="display:none; transform:skewX(15deg); font-size:10px; color:#00cccc; opacity:0.7; margin-top:4px; letter-spacing:1px;">TIME LIMIT: 120s</div>
+        </div>
+        <canvas id="minimap" width="300" height="300"></canvas>
+        <div id="raceFinishedBanner" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; pointer-events:none;">
+          <div style="font-family:'Orbitron',sans-serif; font-size:48px; font-weight:700; color:#fff; text-transform:uppercase; letter-spacing:6px; text-shadow:0 0 20px rgba(76,175,80,0.8);">RACE FINISHED!</div>
+          <div style="font-family:'Orbitron',sans-serif; font-size:16px; color:#aaa; margin-top:15px; letter-spacing:2px; animation:pulseText 2s infinite ease-in-out;">WAITING FOR RACE TO COMPLETE...</div>
+        </div>
+      </div>
+      <div id="splashScreen">
+        <h1>DRIFT RACER</h1>
+        <p class="click-to-play">CLICK SCREEN TO START</p>
+      </div>
+      <div id="startScreen" style="display: none;">
+        <p>Select a Mode</p>
+        <div class="mode-select">
+            <button class="mode-btn" id="singleplayerBtn">SINGLEPLAYER</button>
+            <button class="mode-btn" id="multiplayerBtn">MULTIPLAYER</button>
+        </div>
+      </div>
+      <div id="mapSelectScreen" style="display: none;">
+        <p>Select a Track</p>
+        <div class="map-select">
+            <button class="map-btn" data-map="forest">FOREST CIRCUIT</button>
+            <button class="map-btn" data-map="desert">DESERT CANYON</button>
+        </div>
+      </div>
+      <div id="lobbyScreen" style="display: none;">
+        <h1>MULTIPLAYER LOBBY</h1>
+        <p id="lobbyStatus">Connecting...</p>
+        <div id="playerList"></div>
+        <p id="lobbyCount">0 / 6 Players</p>
+        <button id="lobbyStartBtn" style="display: none;">START RACE</button>
+      </div>
+      <div id="instructionsScreen" style="display: none;">
+        <h1>INSTRUCTIONS</h1>
+        <p>Use WASD or ARROW KEYS to drive.</p>
+        <p>SPACE to brake.</p>
+        <p>Reach the checkpoints to extend time!</p>
+        <div class="button-container">
+            <button id="backBtn">BACK</button>
+            <button id="startRaceBtn">START RACE</button>
+        </div>
+      </div>
+      <div id="gameOverScreen" style="display: none;">
+        <h1>OUT OF GAS</h1>
+        <p>Final Score: <span id="finalScore">0</span></p>
+        <button id="restartBtn">TRY AGAIN</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.182.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.182.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    window.THREE = THREE;
+  </script>
+
+  <script src="GameObject3D.js" defer></script>
+  <script src="Car.js" defer></script>
+  <script src="Tree.js" defer></script>
+  <script src="Checkpoint.js" defer></script>
+  <script src="Environment.js" defer></script>
+  <script src="SpeedBoost.js" defer></script>
+  <script src="Cube.js" defer></script>
+  <script src="Game.js" defer></script>
+
+  <script defer>
+    window.addEventListener('DOMContentLoaded', () => {
+      // Initialize Title Screen immediately
+      if (!window.game) {
+        window.game = new Game('forest');
+        window.game.startTitleScreen();
+      }
+
+      // Splash Screen Click Handler
+      const splashScreen = document.getElementById('splashScreen');
+      const startScreen = document.getElementById('startScreen');
+      
+      splashScreen.addEventListener('click', () => {
+        splashScreen.style.display = 'none';
+        startScreen.style.display = 'block';
+      });
+
+      let selectedMap = 'forest';
+      let isMultiplayerMode = false;
+
+      // Mode Selection
+      document.getElementById('singleplayerBtn').addEventListener('click', () => {
+          isMultiplayerMode = false;
+          document.getElementById('startScreen').style.display = 'none';
+          document.getElementById('mapSelectScreen').style.display = 'block';
+      });
+
+      document.getElementById('multiplayerBtn').addEventListener('click', () => {
+          isMultiplayerMode = true;
+          document.getElementById('startScreen').style.display = 'none';
+          window.game.startMultiplayerLobby('forest');
+      });
+
+      // Map Selection Event Listeners
+      const mapButtons = document.querySelectorAll('.map-btn');
+      mapButtons.forEach(btn => {
+          btn.addEventListener('click', (e) => {
+              selectedMap = e.target.dataset.map;
+              document.getElementById('mapSelectScreen').style.display = 'none';
+              if (isMultiplayerMode) {
+                  window.game.startMultiplayerLobby(selectedMap);
+              } else {
+                  document.getElementById('instructionsScreen').style.display = 'block';
+              }
+          });
+      });
+
+      // Instructions Screen Listeners
+      document.getElementById('backBtn').addEventListener('click', () => {
+          document.getElementById('instructionsScreen').style.display = 'none';
+          document.getElementById('startScreen').style.display = 'block';
+      });
+
+      document.getElementById('startRaceBtn').addEventListener('click', () => {
+          document.getElementById('instructionsScreen').style.display = 'none';
+          
+          if (window.game) {
+              if (window.game.mapType !== selectedMap) {
+                  window.game.switchMap(selectedMap);
+              }
+              window.game.start();
+          }
+      });
+
+      document.getElementById('restartBtn').addEventListener('click', () => {
+        document.getElementById('gameOverScreen').style.display = 'none';
+        window.game.resetGame();
+      });
+  });
+  </script>
+</body>
+</html>
